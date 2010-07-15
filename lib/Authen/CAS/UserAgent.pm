@@ -17,9 +17,12 @@ use URI::QueryParam;
 
 ##LWP handlers
 
-#cas login handler, detects a redirect to cas login, logs the user in, then re-issues the original request with the ticket
+#cas login handler, detects a redirect to the cas login page, logs the user in and updates the initial redirect
 my $casLoginHandler = sub {
 	my ($response, $ua, $h) = @_;
+
+	#prevent potential recursion caused by attempting to log the user in
+	return if($h->{'running'});
 
 	#check to see if this is a redirection to the login page
 	my $uri = URI->new_abs($response->header('Location'), $response->request->uri);
@@ -29,9 +32,6 @@ my $casLoginHandler = sub {
 		$uri->authority eq $loginUri->authority &&
 		$uri->path eq $loginUri->path
 	) {
-		#create a new user agent to segregate CAS cookies from the user agent cookies
-		$ua = LWP::UserAgent->new();
-
 		#short-circuit if a service isn't specified
 		my $service = URI->new(scalar $uri->query_param('service'));
 		return if($service eq '');
@@ -39,13 +39,22 @@ my $casLoginHandler = sub {
 		#short-circuit if in strict mode and the service is different than the original uri
 		return if($h->{'strict'} && $response->request->uri ne $service);
 
-		#login to this CAS server
-		my $casRequest = HTTP::Request::Common::POST($loginUri, [
-			'service' => $service,
-			'username' => $h->{'username'},
-			'password' => $h->{'password'},
-		]);
-		my $casResponse = $ua->simple_request($casRequest);
+		#create a new user agent to segregate CAS cookies from the user agent cookies
+		$ua = LWP::UserAgent->new();
+
+		#login to this CAS server, use the running flag to prevent recursion
+		$h->{'running'} = 1;
+		my $casResponse = eval {
+			$ua->simple_request(HTTP::Request::Common::POST($loginUri, [
+				'service' => $service,
+				'username' => $h->{'username'},
+				'password' => $h->{'password'},
+			]))
+		};
+		delete $h->{'running'};
+
+		#short-circuit if there is no response from CAS for some reason
+		return if(!$casResponse);
 
 		#process all the heuristics until a ticket is found
 		my $ticket;
@@ -63,24 +72,39 @@ my $casLoginHandler = sub {
 		#short-circuit if a ticket wasn't found
 		return if(!defined $ticket);
 
-		#the service the same as the original request
-		if($service eq $response->request->uri) {
-			#clone the original request
-			my $request = $response->request->clone;
+		#update the Location header
+		$response->header('Location', $service . ($service =~ /\?/o ? '&' : '?') . 'ticket=' . uri_escape($ticket));
 
-			#update the request uri to include the ticket
-			my $uri = $request->uri;
-			$uri .= ($uri =~ /\?/o ? '&' : '?') . 'ticket=' . uri_escape($ticket);
-			$request->uri($uri);
+		#attach a local response_redirect handler that will issue the redirect if necessary
+		push(@{$response->{'handlers'}->{'response_redirect'}},
+			{
+				%$h,
+				'callback' => sub {
+					my ($response, $ua, $h) = @_;
 
-			#return the new request
-			return $request;
-		}
-		#the service is different than the original request
-		else {
-			#update the Location header and let LWP decide how to handle the redirect
-			$response->header('Location', $service . ($service =~ /\?/o ? '&' : '?') . 'ticket=' . uri_escape($ticket));
-		}
+					#delete this response_redirect handler from the response object
+					delete $response->{'handlers'}->{'response_redirect'};
+					delete $response->{'handlers'} unless(%{$response->{'handlers'}});
+
+					#determine the new uri
+					my $newUri = URI->new_abs(scalar $response->header('Location'), $response->request->uri);
+
+					#check to see if the target uri is the same as the original uri (ignoring the ticket)
+					my $uri = $response->request->uri;
+					my $targetUri = $newUri->clone;
+					if($targetUri =~ s/[\&\?]ticket=[^\&\?]*$//sog) {
+						if($uri eq $targetUri) {
+							#clone the original request, update the request uri, and return the new request
+							my $request = $response->request->clone;
+							$request->uri($newUri);
+							return $request
+						}
+					}
+
+					return;
+				},
+			},
+		);
 	}
 
 	return;
@@ -156,7 +180,7 @@ sub attachCasLoginHandler($%) {
 	$self->removeCasLoginHandlers($opt{'server'});
 
 	#attach a new CAS login handler
-	$self->set_my_handler('response_redirect', $casLoginHandler,
+	$self->set_my_handler('response_done', $casLoginHandler,
 		'owner' => CASHANDLERNAME,
 		'casServer'  => $opt{'server'},
 		'username'   => $opt{'username'},
@@ -179,13 +203,13 @@ sub removeCasLoginHandlers($@) {
 	my $self = shift;
 
 	#remove cas login handlers for any specified cas servers
-	$self->remove_handler('response_redirect',
+	$self->remove_handler('response_done',
 		'owner' => CASHANDLERNAME,
 		'casServer' => $_,
 	) foreach(@_);
 
 	#remove all cas login handlers if no servers were specified
-	$self->remove_handler('response_redirect',
+	$self->remove_handler('response_done',
 		'owner' => CASHANDLERNAME,
 	) if(!@_);
 
