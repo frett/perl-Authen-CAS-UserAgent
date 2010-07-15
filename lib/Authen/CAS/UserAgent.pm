@@ -4,7 +4,7 @@ use strict;
 use utf8;
 use base qw{LWP::UserAgent};
 
-our $VERSION = 1.043;
+our $VERSION = 1.044;
 
 use constant CASHANDLERNAME => 'CasLoginHandler';
 
@@ -17,11 +17,11 @@ use URI::QueryParam;
 
 ##LWP handlers
 
-#cas login handler, detects a redirect to cas login, logs the user in, then re-issues the original request with
+#cas login handler, detects a redirect to cas login, logs the user in, then re-issues the original request with the ticket
 my $casLoginHandler = sub {
 	my ($response, $ua, $h) = @_;
 
-	#check to see if this is a login request
+	#check to see if this is a redirection to the login page
 	my $uri = URI->new_abs($response->header('Location'), $response->request->uri);
 	my $loginUri = URI->new_abs('login', $h->{'casServer'});
 	if(
@@ -32,8 +32,11 @@ my $casLoginHandler = sub {
 		#create a new user agent to segregate CAS cookies from the user agent cookies
 		$ua = LWP::UserAgent->new();
 
+		#short-circuit if a service isn't specified
+		my $service = URI->new(scalar $uri->query_param('service'));
+		return if($service eq '');
+
 		#short-circuit if in strict mode and the service is different than the original uri
-		my $service = URI->new($uri->query_param('service'));
 		return if($h->{'strict'} && $response->request->uri ne $service);
 
 		#login to this CAS server
