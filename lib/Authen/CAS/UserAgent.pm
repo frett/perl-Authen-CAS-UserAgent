@@ -4,7 +4,7 @@ use strict;
 use utf8;
 use base qw{LWP::UserAgent};
 
-our $VERSION = 1.044;
+our $VERSION = v1.46.0;
 
 use constant CASHANDLERNAME => 'CasLoginHandler';
 
@@ -25,8 +25,8 @@ my $casLoginHandler = sub {
 	return if($h->{'running'});
 
 	#check to see if this is a redirection to the login page
-	my $uri = URI->new_abs($response->header('Location'), $response->request->uri);
-	my $loginUri = URI->new_abs('login', $h->{'casServer'});
+	my $uri = URI->new_abs($response->header('Location'), $response->request->uri)->canonical;
+	my $loginUri = URI->new_abs('login', $h->{'casServer'})->canonical;
 	if(
 		$uri->scheme eq $loginUri->scheme &&
 		$uri->authority eq $loginUri->authority &&
@@ -172,7 +172,7 @@ sub attachCasLoginHandler($%) {
 	return if(!exists $opt{'server'});
 
 	#sanitize options
-	$opt{'server'} = URI->new($opt{'server'} . ($opt{'server'} =~ /\/$/o ? '' : '/'));
+	$opt{'server'} = URI->new($opt{'server'} . ($opt{'server'} =~ /\/$/o ? '' : '/'))->canonical;
 	$opt{'heuristics'} = [$opt{'heuristics'}] if(ref($opt{'heuristics'}) ne 'ARRAY');
 	push @{$opt{'heuristics'}}, $defaultHeuristic;
 
