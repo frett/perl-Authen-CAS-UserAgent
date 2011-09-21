@@ -140,6 +140,27 @@ my $defaultLoginCallback = sub {
 	return;
 };
 
+#Login callback for CAS servers that implement the RESTful API
+my $restLoginCallback = sub {
+	my ($service, $ua, $h) = @_;
+
+	#retrieve the tgt
+	my $loginUri = URI->new_abs('v1/tickets', $h->{'casServer'});
+	my $tgtResponse = $ua->simple_request(HTTP::Request::Common::POST($loginUri, [
+		'username' => $h->{'username'},
+		'password' => $h->{'password'},
+	]));
+	return if($tgtResponse->code != 201);
+	my $tgtUri = $tgtResponse->header('Location');
+
+	#retrieve a ticket for the requested service
+	my $ticketResponse = $ua->simple_request(HTTP::Request::Common::POST($tgtUri, [
+		'service' => $service,
+	]));
+	return if($ticketResponse->code != 200);
+	return $ticketResponse->decoded_content;
+};
+
 ##Static Methods
 
 #return the default user agent for this class
@@ -170,6 +191,7 @@ sub new($%) {
 #	server     => the base CAS server uri to add a login handler for
 #	username   => the username to use to login to the specified CAS server
 #	password   => the password to use to login to the specified CAS server
+#	restful    => a boolean indicating if the CAS server supports the RESTful API
 #	callback   => a login callback to use for logging into CAS, it should return a ticket for the specified service
 #	heuristics => an array of heuristic callbacks that are performed when searching for the service and ticket in a CAS response
 #	strict     => only allow CAS login when the service is the same as the original url
@@ -184,7 +206,7 @@ sub attachCasLoginHandler($%) {
 
 	#sanitize options
 	$opt{'server'} = URI->new($opt{'server'} . ($opt{'server'} =~ /\/$/o ? '' : '/'))->canonical;
-	$opt{'callback'} = $defaultLoginCallback if(ref($opt{'callback'}) ne 'CODE');
+	$opt{'callback'} = $opt{'restful'} ? $restLoginCallback : $defaultLoginCallback if(ref($opt{'callback'}) ne 'CODE');
 	$opt{'heuristics'} = [$opt{'heuristics'}] if(ref($opt{'heuristics'}) ne 'ARRAY');
 	push @{$opt{'heuristics'}}, $defaultHeuristic;
 
