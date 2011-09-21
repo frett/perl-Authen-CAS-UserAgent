@@ -4,7 +4,7 @@ use strict;
 use utf8;
 use base qw{LWP::UserAgent};
 
-our $VERSION = v1.46.0;
+our $VERSION = v2.8.0;
 
 use constant CASHANDLERNAME => 'CasLoginHandler';
 
@@ -42,32 +42,10 @@ my $casLoginHandler = sub {
 		#create a new user agent to segregate CAS cookies from the user agent cookies
 		$ua = LWP::UserAgent->new();
 
-		#login to this CAS server, use the running flag to prevent recursion
+		#get a ticket for the specified service
 		$h->{'running'} = 1;
-		my $casResponse = eval {
-			$ua->simple_request(HTTP::Request::Common::POST($loginUri, [
-				'service' => $service,
-				'username' => $h->{'username'},
-				'password' => $h->{'password'},
-			]))
-		};
+		my $ticket = eval {$h->{'loginCb'}->($service, $ua, $h)};
 		delete $h->{'running'};
-
-		#short-circuit if there is no response from CAS for some reason
-		return if(!$casResponse);
-
-		#process all the heuristics until a ticket is found
-		my $ticket;
-		foreach (@{$h->{'heuristics'}}) {
-			#skip invalid heuristics
-			next if(ref($_) ne 'CODE');
-
-			#process the current heuristic
-			$ticket = eval {$_->($casResponse, $service)};
-
-			#quit processing if a ticket is found
-			last if(defined $ticket);
-		}
 
 		#short-circuit if a ticket wasn't found
 		return if(!defined $ticket);
@@ -130,6 +108,38 @@ my $defaultHeuristic = sub {
 	return;
 };
 
+#default callback to log the user into CAS and return a ticket for the specified service
+my $defaultLoginCallback = sub {
+	my ($service, $ua, $h) = @_;
+
+	#issue the login request
+	my $loginUri = URI->new_abs('login', $h->{'casServer'});
+	my $response = $ua->simple_request(HTTP::Request::Common::POST($loginUri, [
+		'service' => $service,
+		'username' => $h->{'username'},
+		'password' => $h->{'password'},
+	]));
+
+	#short-circuit if there is no response from CAS for some reason
+	return if(!$response);
+
+	#process all the heuristics until a ticket is found
+	my $ticket;
+	foreach (@{$h->{'heuristics'}}) {
+		#skip invalid heuristics
+		next if(ref($_) ne 'CODE');
+
+		#process the current heuristic
+		$ticket = eval {$_->($response, $service)};
+
+		#quit processing if a ticket is found
+		return $ticket if(defined $ticket);
+	}
+
+	#return undefined if no ticket was found
+	return;
+};
+
 ##Static Methods
 
 #return the default user agent for this class
@@ -160,6 +170,7 @@ sub new($%) {
 #	server     => the base CAS server uri to add a login handler for
 #	username   => the username to use to login to the specified CAS server
 #	password   => the password to use to login to the specified CAS server
+#	callback   => a login callback to use for logging into CAS, it should return a ticket for the specified service
 #	heuristics => an array of heuristic callbacks that are performed when searching for the service and ticket in a CAS response
 #	strict     => only allow CAS login when the service is the same as the original url
 sub attachCasLoginHandler($%) {
@@ -173,6 +184,7 @@ sub attachCasLoginHandler($%) {
 
 	#sanitize options
 	$opt{'server'} = URI->new($opt{'server'} . ($opt{'server'} =~ /\/$/o ? '' : '/'))->canonical;
+	$opt{'callback'} = $defaultLoginCallback if(ref($opt{'callback'}) ne 'CODE');
 	$opt{'heuristics'} = [$opt{'heuristics'}] if(ref($opt{'heuristics'}) ne 'ARRAY');
 	push @{$opt{'heuristics'}}, $defaultHeuristic;
 
@@ -185,6 +197,7 @@ sub attachCasLoginHandler($%) {
 		'casServer'  => $opt{'server'},
 		'username'   => $opt{'username'},
 		'password'   => $opt{'password'},
+		'loginCb'    => $opt{'callback'},
 		'heuristics' => $opt{'heuristics'},
 		'strict'     => $opt{'strict'},
 		'm_code' => [
