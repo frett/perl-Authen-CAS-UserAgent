@@ -4,7 +4,7 @@ use strict;
 use utf8;
 use base qw{LWP::UserAgent};
 
-our $VERSION = v2.8.0;
+our $VERSION = v2.9.0;
 
 use constant CASHANDLERNAME => 'CasLoginHandler';
 
@@ -22,7 +22,7 @@ my $casLoginHandler = sub {
 	my ($response, $ua, $h) = @_;
 
 	#prevent potential recursion caused by attempting to log the user in
-	return if($h->{'running'});
+	return if($h->{'running'} > 0);
 
 	#check to see if this is a redirection to the login page
 	my $uri = URI->new_abs($response->header('Location'), $response->request->uri)->canonical;
@@ -39,13 +39,8 @@ my $casLoginHandler = sub {
 		#short-circuit if in strict mode and the service is different than the original uri
 		return if($h->{'strict'} && $response->request->uri ne $service);
 
-		#create a new user agent to segregate CAS cookies from the user agent cookies
-		$ua = LWP::UserAgent->new();
-
 		#get a ticket for the specified service
-		$h->{'running'} = 1;
-		my $ticket = eval {$h->{'loginCb'}->($service, $ua, $h)};
-		delete $h->{'running'};
+		my $ticket = $ua->getSt($service, $h);
 
 		#short-circuit if a ticket wasn't found
 		return if(!defined $ticket);
@@ -222,6 +217,7 @@ sub attachCasLoginHandler($%) {
 		'loginCb'    => $opt{'callback'},
 		'heuristics' => $opt{'heuristics'},
 		'strict'     => $opt{'strict'},
+		'running'    => 0,
 		'm_code' => [
 			HTTP::Status::HTTP_MOVED_PERMANENTLY,
 			HTTP::Status::HTTP_FOUND,
@@ -231,6 +227,35 @@ sub attachCasLoginHandler($%) {
 	);
 
 	return 1;
+}
+
+# method that will retrieve a Service Ticket from the specified CAS server
+sub getSt($$;$) {
+	my $self = shift;
+	my ($service, $server) = @_;
+
+	# resolve which handler to use
+	my $h;
+	if(ref($server) eq 'HASH' && defined $server->{'casServer'}) {
+		$h = $server;
+	}
+	else {
+		$server = URI->new($server . ($server =~ /\/$/o ? '' : '/'))->canonical if(defined $server);
+		my @handlers = $self->get_my_handler('response_done', 'owner' => CASHANDLERNAME,
+			(defined $server ? ('casServer' => $server) : ()),
+		);
+		die 'too many CAS servers found, try specifying a specific CAS server' if(@handlers > 1);
+		$h = $handlers[0];
+	}
+	die 'cannot find a CAS server to fetch the ST from' if(!$h);
+
+	# get a ticket from the handler
+	$h->{'running'}++;
+	my $ticket = eval {$h->{'loginCb'}->($service, LWP::UserAgent->new(), $h)};
+	$h->{'running'}--;
+
+	# return the found ticket
+	return $ticket;
 }
 
 #method that will remove the cas login handlers for the specified cas servers or all if a specified server is not provided
