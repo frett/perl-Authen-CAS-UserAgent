@@ -266,7 +266,7 @@ sub removeCasLoginHandlers($@) {
 	$self->remove_handler('response_done',
 		'owner' => CASHANDLERNAME,
 		'casServer' => $_,
-	) foreach(@_);
+	) foreach(map {URI->new($_ . ($_ =~ /\/$/o ? '' : '/'))->canonical} @_);
 
 	#remove all cas login handlers if no servers were specified
 	$self->remove_handler('response_done',
