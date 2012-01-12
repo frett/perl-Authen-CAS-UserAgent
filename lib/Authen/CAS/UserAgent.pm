@@ -4,7 +4,7 @@ use strict;
 use utf8;
 use base qw{LWP::UserAgent};
 
-our $VERSION = v2.9.0;
+our $VERSION = v2.12.0;
 
 use constant CASHANDLERNAME => 'CasLoginHandler';
 
@@ -135,6 +135,26 @@ my $defaultLoginCallback = sub {
 	return;
 };
 
+# Login callback when the specified server is in proxy mode
+my $proxyLoginCallback = sub {
+	my ($service, $ua, $h) = @_;
+
+	#create the request uri
+	my $ptUri = URI->new_abs('proxy', $h->{'casServer'});
+	$ptUri->query_form(
+		'pgt'           => $h->{'pgt'},
+		'targetService' => $service,
+	);
+
+	#fetch proxy ticket and return it if successful
+	my $response = $ua->simple_request(HTTP::Request::Common::GET($ptUri));
+	if($response->content =~ /<cas:proxyTicket>(.*?)<\/cas:proxyTicket>/o) {
+		return $1;
+	}
+
+	return;
+};
+
 #Login callback for CAS servers that implement the RESTful API
 my $restLoginCallback = sub {
 	my ($service, $ua, $h) = @_;
@@ -186,6 +206,8 @@ sub new($%) {
 #	server     => the base CAS server uri to add a login handler for
 #	username   => the username to use to login to the specified CAS server
 #	password   => the password to use to login to the specified CAS server
+#	pgt        => the pgt for a proxy login handler
+#	proxy      => a boolean indicating this handler is a proxy login handler
 #	restful    => a boolean indicating if the CAS server supports the RESTful API
 #	callback   => a login callback to use for logging into CAS, it should return a ticket for the specified service
 #	heuristics => an array of heuristic callbacks that are performed when searching for the service and ticket in a CAS response
@@ -195,15 +217,19 @@ sub attachCasLoginHandler($%) {
 	my (%opt) = @_;
 
 	#short-circuit if required options aren't specified
-	return if(!exists $opt{'username'});
-	return if(!exists $opt{'password'});
 	return if(!exists $opt{'server'});
+	return if(!$opt{'proxy'} && !(exists $opt{'username'} && exists $opt{'password'}));
+	return if($opt{'proxy'} && !exists $opt{'pgt'});
 
 	#sanitize options
 	$opt{'server'} = URI->new($opt{'server'} . ($opt{'server'} =~ /\/$/o ? '' : '/'))->canonical;
-	$opt{'callback'} = $opt{'restful'} ? $restLoginCallback : $defaultLoginCallback if(ref($opt{'callback'}) ne 'CODE');
 	$opt{'heuristics'} = [$opt{'heuristics'}] if(ref($opt{'heuristics'}) ne 'ARRAY');
 	push @{$opt{'heuristics'}}, $defaultHeuristic;
+	my $callback =
+		ref($opt{'callback'}) eq 'CODE' ? $opt{'callback'}    :
+		$opt{'proxy'}                   ? $proxyLoginCallback :
+		$opt{'restful'}                 ? $restLoginCallback  :
+		$defaultLoginCallback;
 
 	#remove any pre-existing login handler for the current CAS server
 	$self->removeCasLoginHandlers($opt{'server'});
@@ -214,7 +240,8 @@ sub attachCasLoginHandler($%) {
 		'casServer'  => $opt{'server'},
 		'username'   => $opt{'username'},
 		'password'   => $opt{'password'},
-		'loginCb'    => $opt{'callback'},
+		'pgt'        => $opt{'pgt'},
+		'loginCb'    => $callback,
 		'heuristics' => $opt{'heuristics'},
 		'strict'     => $opt{'strict'},
 		'running'    => 0,
