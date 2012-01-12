@@ -2,11 +2,29 @@ package Authen::CAS::UserAgent;
 
 use strict;
 use utf8;
-use base qw{LWP::UserAgent};
+use base qw{LWP::UserAgent Exporter};
 
 our $VERSION = v2.12.0;
 
 use constant CASHANDLERNAME => 'CasLoginHandler';
+use constant XMLNS_CAS => 'http://www.yale.edu/tp/cas';
+
+use constant ERROR_PROXY_INVALIDRESPONSE => 1;
+use constant ERROR_PROXY_INVALIDTICKET   => 2;
+use constant ERROR_PROXY_UNKNOWN         => 3;
+
+our @EXPORT_OK = qw{
+	ERROR_PROXY_INVALIDRESPONSE
+	ERROR_PROXY_INVALIDTICKET
+	ERROR_PROXY_UNKNOWN
+};
+our %EXPORT_TAGS = (
+	ERRORS => [qw{
+		ERROR_PROXY_INVALIDRESPONSE
+		ERROR_PROXY_INVALIDTICKET
+		ERROR_PROXY_UNKNOWN
+	}],
+);
 
 use HTTP::Request;
 use HTTP::Request::Common ();
@@ -14,6 +32,8 @@ use HTTP::Status ();
 use URI;
 use URI::Escape qw{uri_escape};
 use URI::QueryParam;
+use XML::LibXML;
+use XML::LibXML::XPathContext;
 
 ##LWP handlers
 
@@ -139,6 +159,9 @@ my $defaultLoginCallback = sub {
 my $proxyLoginCallback = sub {
 	my ($service, $ua, $h) = @_;
 
+	#clear any previous error
+	delete $h->{'error'};
+
 	#create the request uri
 	my $ptUri = URI->new_abs('proxy', $h->{'casServer'});
 	$ptUri->query_form(
@@ -146,12 +169,38 @@ my $proxyLoginCallback = sub {
 		'targetService' => $service,
 	);
 
-	#fetch proxy ticket and return it if successful
+	# fetch proxy ticket and parse response xml
 	my $response = $ua->simple_request(HTTP::Request::Common::GET($ptUri));
-	if($response->content =~ /<cas:proxyTicket>(.*?)<\/cas:proxyTicket>/o) {
-		return $1;
+	my $doc = eval {XML::LibXML->new()->parse_string($response->decoded_content('charset' => 'none'))};
+	if($@ || !$doc) {
+		$h->{'error'} = ERROR_PROXY_INVALIDRESPONSE;
+		push @{$h->{'errors'}}, $h->{'error'};
+		return;
 	}
 
+	# process the response to extract the proxy ticket or any errors
+	my $xpc = XML::LibXML::XPathContext->new();
+	$xpc->registerNs('cas', XMLNS_CAS);
+	if($xpc->exists('/cas:serviceResponse/cas:proxyFailure', $doc)) {
+		my $code = $xpc->findvalue('/cas:serviceResponse/cas:proxyFailure[position()=1]/@code', $doc);
+		if($code eq 'INVALID_TICKET') {
+			$h->{'error'} = ERROR_PROXY_INVALIDTICKET;
+			push @{$h->{'errors'}}, $h->{'error'};
+		}
+		else {
+			$h->{'error'} = ERROR_PROXY_UNKNOWN;
+			push @{$h->{'errors'}}, $h->{'error'};
+		}
+	}
+	elsif($xpc->exists('/cas:serviceResponse/cas:proxySuccess', $doc)) {
+		return $xpc->findvalue('/cas:serviceResponse/cas:proxySuccess[position()=1]/cas:proxyTicket[position()=1]', $doc);
+	}
+	else {
+		$h->{'error'} = ERROR_PROXY_INVALIDRESPONSE;
+		push @{$h->{'errors'}}, $h->{'error'};
+	}
+
+	# default to no ticket being returned
 	return;
 };
 
