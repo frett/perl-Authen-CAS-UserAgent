@@ -305,6 +305,17 @@ sub attachCasLoginHandler($%) {
 	return 1;
 }
 
+sub getCasLoginHandlers($;$) {
+	my $self = shift;
+	my ($server) = @_;
+
+	$server = URI->new($server . ($server =~ /\/$/o ? '' : '/'))->canonical if(defined $server);
+	return $self->get_my_handler('response_done',
+		'owner' => CASHANDLERNAME,
+		(defined $server ? ('casServer' => $server) : ()),
+	);
+}
+
 # method that will retrieve a Service Ticket from the specified CAS server
 sub getSt($$;$) {
 	my $self = shift;
@@ -316,10 +327,7 @@ sub getSt($$;$) {
 		$h = $server;
 	}
 	else {
-		$server = URI->new($server . ($server =~ /\/$/o ? '' : '/'))->canonical if(defined $server);
-		my @handlers = $self->get_my_handler('response_done', 'owner' => CASHANDLERNAME,
-			(defined $server ? ('casServer' => $server) : ()),
-		);
+		my @handlers = $self->getCasLoginHandlers($server);
 		die 'too many CAS servers found, try specifying a specific CAS server' if(@handlers > 1);
 		$h = $handlers[0];
 	}
