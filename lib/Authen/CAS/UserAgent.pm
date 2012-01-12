@@ -80,13 +80,13 @@ my $casLoginHandler = sub {
 					delete $response->{'handlers'} unless(%{$response->{'handlers'}});
 
 					#determine the new uri
-					my $newUri = URI->new_abs(scalar $response->header('Location'), $response->request->uri);
+					my $uri = $response->request->uri;
+					my $newUri = URI->new_abs(scalar $response->header('Location'), $uri);
 
 					#check to see if the target uri is the same as the original uri (ignoring the ticket)
-					my $uri = $response->request->uri;
 					my $targetUri = $newUri->clone;
 					if($targetUri =~ s/[\&\?]ticket=[^\&\?]*$//sog) {
-						if($uri eq $targetUri) {
+						if($targetUri eq $uri) {
 							#clone the original request, update the request uri, and return the new request
 							my $request = $response->request->clone;
 							$request->uri($newUri);
@@ -124,6 +124,7 @@ my $defaultHeuristic = sub {
 };
 
 #default callback to log the user into CAS and return a ticket for the specified service
+#TODO: add LT support
 my $defaultLoginCallback = sub {
 	my ($service, $ua, $h) = @_;
 
@@ -205,6 +206,7 @@ my $proxyLoginCallback = sub {
 };
 
 #Login callback for CAS servers that implement the RESTful API
+#TODO: cache the TGT
 my $restLoginCallback = sub {
 	my ($service, $ua, $h) = @_;
 
