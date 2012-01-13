@@ -60,7 +60,7 @@ my $casLoginHandler = sub {
 		return if($h->{'strict'} && $response->request->uri ne $service);
 
 		#get a ticket for the specified service
-		my $ticket = $ua->getSt($service, $h);
+		my $ticket = $ua->getTicket($service, $h);
 
 		#short-circuit if a ticket wasn't found
 		return if(!defined $ticket);
@@ -318,8 +318,8 @@ sub getCasLoginHandlers($;$) {
 	);
 }
 
-# method that will retrieve a Service Ticket from the specified CAS server
-sub getSt($$;$) {
+# method that will retrieve a Ticket for the specified service
+sub getTicket($$;$) {
 	my $self = shift;
 	my ($service, $server) = @_;
 
