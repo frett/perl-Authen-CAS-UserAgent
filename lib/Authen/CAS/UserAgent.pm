@@ -270,7 +270,7 @@ sub attachCasLoginHandler($%) {
 	#short-circuit if required options aren't specified
 	return if(!exists $opt{'server'});
 	return if(!$opt{'proxy'} && !(exists $opt{'username'} && exists $opt{'password'}));
-	return if($opt{'proxy'} && !exists $opt{'pgt'});
+	return if($opt{'proxy'} && !$opt{'pgt'});
 
 	#sanitize options
 	$opt{'server'} = URI->new($opt{'server'} . ($opt{'server'} =~ /\/$/o ? '' : '/'))->canonical;
