@@ -295,6 +295,7 @@ sub attachCasLoginHandler($%) {
 		'loginCb'    => $callback,
 		'heuristics' => $opt{'heuristics'},
 		'strict'     => $opt{'strict'},
+		'errors'     => [],
 		'running'    => 0,
 		'm_code' => [
 			HTTP::Status::HTTP_MOVED_PERMANENTLY,
