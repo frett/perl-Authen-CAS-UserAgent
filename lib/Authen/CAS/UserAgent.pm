@@ -245,7 +245,7 @@ sub new($%) {
 	$self = $self->SUPER::new(%opt);
 
 	#attach a cas login handler if options were specified
-	$self->attachCasLoginHandler(%{$opt{'casOpts'}}) if(ref($opt{'casOpts'}) eq 'HASH');
+	$self->attachCasLoginHandler(%{$opt{'cas_opts'}}) if(ref($opt{'cas_opts'}) eq 'HASH');
 
 	#return this object
 	return $self;
