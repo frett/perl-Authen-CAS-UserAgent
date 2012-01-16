@@ -6,7 +6,7 @@ use base qw{LWP::UserAgent Exporter};
 
 our $VERSION = 0.900;
 
-use constant CASHANDLERNAME => 'CasLoginHandler';
+use constant CASHANDLERNAME => __PACKAGE__ . '.Handler';
 use constant XMLNS_CAS => 'http://www.yale.edu/tp/cas';
 
 use constant ERROR_PROXY_INVALIDRESPONSE => 1;
@@ -60,7 +60,7 @@ my $casLoginHandler = sub {
 		return if($h->{'strict'} && $response->request->uri ne $service);
 
 		#get a ticket for the specified service
-		my $ticket = $ua->getTicket($service, $h);
+		my $ticket = $ua->get_cas_ticket($service, $h);
 
 		#short-circuit if a ticket wasn't found
 		return if(!defined $ticket);
@@ -245,7 +245,7 @@ sub new($%) {
 	$self = $self->SUPER::new(%opt);
 
 	#attach a cas login handler if options were specified
-	$self->attachCasLoginHandler(%{$opt{'cas_opts'}}) if(ref($opt{'cas_opts'}) eq 'HASH');
+	$self->attach_cas_handler(%{$opt{'cas_opts'}}) if(ref($opt{'cas_opts'}) eq 'HASH');
 
 	#return this object
 	return $self;
@@ -263,7 +263,7 @@ sub new($%) {
 #	callback   => a login callback to use for logging into CAS, it should return a ticket for the specified service
 #	heuristics => an array of heuristic callbacks that are performed when searching for the service and ticket in a CAS response
 #	strict     => only allow CAS login when the service is the same as the original url
-sub attachCasLoginHandler($%) {
+sub attach_cas_handler($%) {
 	my $self = shift;
 	my (%opt) = @_;
 
@@ -283,7 +283,7 @@ sub attachCasLoginHandler($%) {
 		$defaultLoginCallback;
 
 	#remove any pre-existing login handler for the current CAS server
-	$self->removeCasLoginHandlers($opt{'server'});
+	$self->remove_cas_handlers($opt{'server'});
 
 	#attach a new CAS login handler
 	$self->set_my_handler('response_done', $casLoginHandler,
@@ -308,7 +308,7 @@ sub attachCasLoginHandler($%) {
 	return 1;
 }
 
-sub getCasLoginHandlers($;$) {
+sub get_cas_handlers($;$) {
 	my $self = shift;
 	my ($server) = @_;
 
@@ -319,8 +319,8 @@ sub getCasLoginHandlers($;$) {
 	);
 }
 
-# method that will retrieve a Ticket for the specified service
-sub getTicket($$;$) {
+# method that will retrieve a ticket for the specified service
+sub get_cas_ticket($$;$) {
 	my $self = shift;
 	my ($service, $server) = @_;
 
@@ -330,7 +330,7 @@ sub getTicket($$;$) {
 		$h = $server;
 	}
 	else {
-		my @handlers = $self->getCasLoginHandlers($server);
+		my @handlers = $self->get_cas_handlers($server);
 		die 'too many CAS servers found, try specifying a specific CAS server' if(@handlers > 1);
 		$h = $handlers[0];
 	}
@@ -346,7 +346,7 @@ sub getTicket($$;$) {
 }
 
 #method that will remove the cas login handlers for the specified cas servers or all if a specified server is not provided
-sub removeCasLoginHandlers($@) {
+sub remove_cas_handlers($@) {
 	my $self = shift;
 
 	#remove cas login handlers for any specified cas servers
