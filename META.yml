@@ -15,7 +15,7 @@ name: Authen-CAS-UserAgent
 provides:
   Authen::CAS::UserAgent:
     file: lib/Authen/CAS/UserAgent.pm
-    version: v1.0.0
+    version: 0.9
 requires:
   Exporter: 0
   HTTP::Message: 0
@@ -24,4 +24,4 @@ requires:
   XML::LibXML: 0
 resources:
   license: http://opensource.org/licenses/mit-license.php
-version: v1.0.0
+version: 0.9

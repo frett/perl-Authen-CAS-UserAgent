@@ -17,5 +17,5 @@
 
 # distribution related files
 ^MANIFEST\.SKIP$
-^Authen-CAS-UserAgent-v[\d\.\_]+
+^Authen-CAS-UserAgent-[\d\.\_]+
 \.tar\.gz$

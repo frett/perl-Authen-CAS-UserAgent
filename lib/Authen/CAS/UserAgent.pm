@@ -4,7 +4,7 @@ use strict;
 use utf8;
 use base qw{LWP::UserAgent Exporter};
 
-our $VERSION = v1.0.0;
+our $VERSION = 0.900;
 
 use constant CASHANDLERNAME => 'CasLoginHandler';
 use constant XMLNS_CAS => 'http://www.yale.edu/tp/cas';
