@@ -1,0 +1,45 @@
+{
+   "abstract" : "LWP::UserAgent subclass for a CAS aware UserAgent",
+   "author" : [
+      "unknown"
+   ],
+   "dynamic_config" : 1,
+   "generated_by" : "Module::Build version 0.38, CPAN::Meta::Converter version 2.112150",
+   "license" : [
+      "mit"
+   ],
+   "meta-spec" : {
+      "url" : "http://search.cpan.org/perldoc?CPAN::Meta::Spec",
+      "version" : "2"
+   },
+   "name" : "Authen-CAS-UserAgent",
+   "prereqs" : {
+      "configure" : {
+         "requires" : {
+            "Module::Build" : "0.36"
+         }
+      },
+      "runtime" : {
+         "requires" : {
+            "Exporter" : 0,
+            "HTTP::Message" : 0,
+            "LWP::UserAgent" : 0,
+            "URI" : 0,
+            "XML::LibXML" : 0
+         }
+      }
+   },
+   "provides" : {
+      "Authen::CAS::UserAgent" : {
+         "file" : "lib/Authen/CAS/UserAgent.pm",
+         "version" : "v1.0.0"
+      }
+   },
+   "release_status" : "stable",
+   "resources" : {
+      "license" : [
+         "http://opensource.org/licenses/mit-license.php"
+      ]
+   },
+   "version" : "v1.0.0"
+}

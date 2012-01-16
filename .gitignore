@@ -1,0 +1,9 @@
+/_build/
+/blib/
+/Build
+/MANIFEST.bak
+/MANIFEST.SKIP.bak
+/MYMETA.json
+/MYMETA.yml
+/Authen-CAS-UserAgent-*/
+/Authen-CAS-UserAgent-*.tar.gz

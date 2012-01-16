@@ -1,0 +1,21 @@
+# version control meta-data
+^\.git/
+^\.gitignore
+
+# OS specific meta-data
+\.DS_Store$
+
+# build generated files
+^_build/
+^Build$
+^blib/
+^MYMETA\.json$
+^MYMETA\.yml$
+
+# temporary files
+\.bak$
+
+# distribution related files
+^MANIFEST\.SKIP$
+^Authen-CAS-UserAgent-v[\d\.\_]+
+\.tar\.gz$
