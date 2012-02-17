@@ -8,7 +8,7 @@ Module::Build->new(
 	'module_name'        => 'Authen::CAS::UserAgent',
 	'create_makefile_pl' => 'traditional',
 	'dist_abstract'      => 'LWP::UserAgent subclass for a CAS aware UserAgent',
-	'license'            => 'mit',
+	'license'            => 'bsd',
 	'configure_requires' => {
 		'Module::Build'  => '0.36',
 	},
