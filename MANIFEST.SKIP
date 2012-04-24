@@ -1,6 +1,7 @@
 # version control meta-data
 ^\.git/
 ^\.gitignore
+^\.gitattributes
 
 # OS specific meta-data
 \.DS_Store$
