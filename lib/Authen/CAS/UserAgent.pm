@@ -1,5 +1,32 @@
 package Authen::CAS::UserAgent;
 
+=head1 NAME
+
+Authen::CAS::UserAgent - CAS-aware LWP::UserAgent
+
+=head1 SYNOPSIS
+
+ use Authen::CAS::UserAgent;
+
+ my $ua = Authen::CAS::UserAgent->new(
+   'cas_opts' => {
+     'server' => 'https://cas.example.com/cas/',
+     'username' => 'user',
+     'password' => 'password',
+     'restful'  => 1,
+   },
+ );
+ $ua->get('https://www.example.com/casProtectedResource');
+
+=head1 DESCRIPTION
+
+This module attempts to add transparent CAS authentication support to
+LWP::UserAgent. It currently supports using proxy granting tickets, the RESTful
+API, screen scraping the login screen, or a custom login callback when CAS
+authentication is required.
+
+=cut
+
 use strict;
 use utf8;
 use base qw{LWP::UserAgent Exporter};
@@ -251,7 +278,80 @@ sub new($%) {
 	return $self;
 }
 
-##Instance Methods
+=head1 METHODS
+
+The following methods are available:
+
+=over 4
+
+=item $ua->attach_cas_handler( %options )
+
+This method attaches a CAS handler to the current C<Authen::CAS::UserAgent>
+object.
+
+The following options are supported:
+
+=over
+
+=item C<server> => $url
+
+This option defines the base CAS URL to use for this handler. The base url is
+used to detect redirects to CAS for authentication and to issue any requests to
+CAS when authenticating.
+
+This option is required.
+
+=item C<username> => $string
+
+This option defines the username to use for authenticating with the CAS server.
+
+This option is required unless using proxy mode.
+
+=item C<password> => $string
+
+This option defines the password to use for authenticating with the CAS server.
+
+This option is required unless using proxy mode.
+
+=item C<restful> => $bool
+
+When this option is TRUE, C<Authen::CAS::UserAgent> will use the RESTful API to
+authenticate with the CAS server.
+
+This option defaults to FALSE.
+
+=item C<proxy> => $bool
+
+When this option is TRUE, C<Authen::CAS::UserAgent> using a proxy granting
+ticket to authenticate with the CAS server.
+
+This option defaults to FALSE.
+
+=item C<pgt> => $string
+
+This option specifies the proxy granting ticket to use when proxy mode is active.
+
+This option is required when using proxy mode.
+
+=item C<strict> => $bool
+
+When this option is TRUE, C<Authen::CAS::UserAgent> will only allow
+authentication for the URL of the request requiring authentication.
+
+This option defaults to FALSE.
+
+=item C<callback> => $cb
+
+This option can be used to specify a custom callback to use when authenticating
+with CAS. The callback is called as follows: $cb->($service, $ua, $handler) and
+is expected to return a $ticket for the specified service on successful
+authentication.
+
+=back
+
+=back
+
+=cut
 
 #method that will attach the cas server login handler
 #	server     => the base CAS server uri to add a login handler for
@@ -364,3 +464,19 @@ sub remove_cas_handlers($@) {
 }
 
 1;
+
+__END__
+
+=head1 AUTHOR
+
+Daniel Frett
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 2011-2012 - Campus Crusade for Christ International
+
+This is free software, licensed under:
+
+  The (three-clause) BSD License
+
+=cut
