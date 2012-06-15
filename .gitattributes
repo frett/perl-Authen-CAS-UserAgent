@@ -1,6 +1,7 @@
-*.pl   text
-*.pm   text
+*.pl   text diff=perl
+*.pm   text diff=perl
+*.t    text diff=perl
 
-*.PL   text
+*.PL   text diff=perl
 *.json text
 *.yml  text
