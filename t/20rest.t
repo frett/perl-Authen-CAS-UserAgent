@@ -4,7 +4,7 @@ use strict;
 use lib substr(__FILE__, 0, rindex(__FILE__, '/'));
 require 'MockUserAgent.pl';
 
-use Test::More 'tests' => 6;
+use Test::More 'tests' => 10;
 use Authen::CAS::UserAgent;
 use URI;
 use URI::QueryParam;
@@ -88,7 +88,26 @@ my $ua = Authen::CAS::UserAgent->new(
 		'restful' => 1,
 	},
 );
-my $response = $ua->get($service);
+my $response;
 
+# valid username & password
+$ua->attach_cas_handler(
+	'server' => $casServer,
+	'username' => $username,
+	'password' => $password,
+	'restful' => 1,
+);
+$response = $ua->get($service);
 is($response->code, 200);
 is($response->decoded_content, 'success');
+
+# invalid username & password
+$ua->attach_cas_handler(
+	'server' => $casServer,
+	'username' => $username,
+	'password' => $password . '.invalid',
+	'restful' => 1,
+);
+$response = $ua->get($service);
+is($response->code, 302);
+is($response->header('Location'), $loginUri);
