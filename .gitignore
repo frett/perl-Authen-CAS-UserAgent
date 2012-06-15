@@ -1,6 +1,9 @@
 /_build/
 /blib/
 /Build
+/Makefile
+/Makefile.old
+/pm_to_blib
 /MANIFEST.bak
 /MANIFEST.SKIP.bak
 /MYMETA.json
