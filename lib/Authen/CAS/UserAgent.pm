@@ -31,7 +31,7 @@ use strict;
 use utf8;
 use base qw{LWP::UserAgent Exporter};
 
-our $VERSION = 0.900;
+our $VERSION = 0.91;
 
 use constant CASHANDLERNAME => __PACKAGE__ . '.Handler';
 use constant XMLNS_CAS => 'http://www.yale.edu/tp/cas';
@@ -268,11 +268,14 @@ sub new($%) {
 	my $self = shift;
 	my (%opt) = @_;
 
+	# remove any cas options before creating base object
+	my $cas_opts = delete $opt{'cas_opts'};
+
 	#setup the base object
 	$self = $self->SUPER::new(%opt);
 
 	#attach a cas login handler if options were specified
-	$self->attach_cas_handler(%{$opt{'cas_opts'}}) if(ref($opt{'cas_opts'}) eq 'HASH');
+	$self->attach_cas_handler(%$cas_opts) if(ref($cas_opts) eq 'HASH');
 
 	#return this object
 	return $self;
