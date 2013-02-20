@@ -31,7 +31,7 @@ use strict;
 use utf8;
 use base qw{LWP::UserAgent Exporter};
 
-our $VERSION = 0.91;
+our $VERSION = '0.910';
 
 use constant CASHANDLERNAME => __PACKAGE__ . '.Handler';
 use constant XMLNS_CAS => 'http://www.yale.edu/tp/cas';
@@ -131,7 +131,7 @@ my $casLoginHandler = sub {
 };
 
 #default heuristic for detecting the service and ticket in the login response
-my $defaultHeuristic = sub {
+my $defaultTicketHeuristic = sub {
 	my ($response, $service) = @_;
 
 	#attempt using the Location header on a redirect response
@@ -166,14 +166,13 @@ my $defaultLoginCallback = sub {
 	#short-circuit if there is no response from CAS for some reason
 	return if(!$response);
 
-	#process all the heuristics until a ticket is found
-	my $ticket;
-	foreach (@{$h->{'heuristics'}}) {
+	#process all the ticket heuristics until a ticket is found
+	foreach (@{$h->{'config'}->{'ticket_heuristics'}}) {
 		#skip invalid heuristics
 		next if(ref($_) ne 'CODE');
 
 		#process the current heuristic
-		$ticket = eval {$_->($response, $service)};
+		my $ticket = eval {$_->($response, $service)};
 
 		#quit processing if a ticket is found
 		return $ticket if(defined $ticket);
@@ -357,15 +356,15 @@ authentication.
 =cut
 
 #method that will attach the cas server login handler
-#	server     => the base CAS server uri to add a login handler for
-#	username   => the username to use to login to the specified CAS server
-#	password   => the password to use to login to the specified CAS server
-#	pgt        => the pgt for a proxy login handler
-#	proxy      => a boolean indicating this handler is a proxy login handler
-#	restful    => a boolean indicating if the CAS server supports the RESTful API
-#	callback   => a login callback to use for logging into CAS, it should return a ticket for the specified service
-#	heuristics => an array of heuristic callbacks that are performed when searching for the service and ticket in a CAS response
-#	strict     => only allow CAS login when the service is the same as the original url
+#	server            => the base CAS server uri to add a login handler for
+#	username          => the username to use to login to the specified CAS server
+#	password          => the password to use to login to the specified CAS server
+#	pgt               => the pgt for a proxy login handler
+#	proxy             => a boolean indicating this handler is a proxy login handler
+#	restful           => a boolean indicating if the CAS server supports the RESTful API
+#	callback          => a login callback to use for logging into CAS, it should return a ticket for the specified service
+#	ticket_heuristics => an array of heuristic callbacks that are performed when searching for the service and ticket in a CAS response
+#	strict            => only allow CAS login when the service is the same as the original url
 sub attach_cas_handler($%) {
 	my $self = shift;
 	my (%opt) = @_;
@@ -377,13 +376,18 @@ sub attach_cas_handler($%) {
 
 	#sanitize options
 	$opt{'server'} = URI->new($opt{'server'} . ($opt{'server'} =~ /\/$/o ? '' : '/'))->canonical;
-	$opt{'heuristics'} = [$opt{'heuristics'}] if(ref($opt{'heuristics'}) ne 'ARRAY');
-	push @{$opt{'heuristics'}}, $defaultHeuristic;
 	my $callback =
 		ref($opt{'callback'}) eq 'CODE' ? $opt{'callback'}    :
 		$opt{'proxy'}                   ? $proxyLoginCallback :
 		$opt{'restful'}                 ? $restLoginCallback  :
 		$defaultLoginCallback;
+
+	# process any default config values for bundled callbacks/heuristics, we do this here
+	# instead of in the callbacks to make default values available to custom
+	# callbacks
+	$opt{'ticket_heuristics'} = [$opt{'ticket_heuristics'}] if(ref($opt{'ticket_heuristics'}) ne 'ARRAY');
+	push @{$opt{'ticket_heuristics'}}, $defaultTicketHeuristic;
+	@{$opt{'ticket_heuristics'}} = grep {ref($_) eq 'CODE'} @{$opt{'ticket_heuristics'}};
 
 	#remove any pre-existing login handler for the current CAS server
 	$self->remove_cas_handlers($opt{'server'});
@@ -391,15 +395,15 @@ sub attach_cas_handler($%) {
 	#attach a new CAS login handler
 	$self->set_my_handler('response_done', $casLoginHandler,
 		'owner' => CASHANDLERNAME,
-		'casServer'  => $opt{'server'},
-		'username'   => $opt{'username'},
-		'password'   => $opt{'password'},
-		'pgt'        => $opt{'pgt'},
-		'loginCb'    => $callback,
-		'heuristics' => $opt{'heuristics'},
-		'strict'     => $opt{'strict'},
-		'errors'     => [],
-		'running'    => 0,
+		'casServer' => $opt{'server'},
+		'strict'    => $opt{'strict'},
+		'loginCb'   => $callback,
+		'username'  => $opt{'username'},
+		'password'  => $opt{'password'},
+		'pgt'       => $opt{'pgt'},
+		'config'    => \%opt,
+		'errors'    => [],
+		'running'   => 0,
 		'm_code' => [
 			HTTP::Status::HTTP_MOVED_PERMANENTLY,
 			HTTP::Status::HTTP_FOUND,
