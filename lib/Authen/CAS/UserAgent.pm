@@ -130,6 +130,27 @@ my $casLoginHandler = sub {
 	return;
 };
 
+# default heuristic for finding login parameters
+my $defaultLoginParamsHeuristic = sub {
+	my ($service, $response, $ua, $h, @params) = @_;
+
+	# find all input controls on the submit form
+	my $content = $response->decoded_content;
+	while($content =~ /(\<input.*?\>)/iogs) {
+		my $input = $1;
+		my $name = $input =~ /name=\"(.*?)\"/soi ? $1 : undef;
+		my $value = $input =~ /value=\"(.*?)\"/soi ? $1 : undef;
+
+		# we only care about the lt, execution, and _eventId parameters
+		if($name eq 'lt' || $name eq 'execution' || $name eq '_eventId') {
+			push @params, $name, $value;
+		}
+	}
+
+	# return the updated params
+	return @params;
+};
+
 #default heuristic for detecting the service and ticket in the login response
 my $defaultTicketHeuristic = sub {
 	my ($response, $service) = @_;
@@ -151,17 +172,36 @@ my $defaultTicketHeuristic = sub {
 };
 
 #default callback to log the user into CAS and return a ticket for the specified service
-#TODO: add LT support
 my $defaultLoginCallback = sub {
 	my ($service, $ua, $h) = @_;
 
-	#issue the login request
+	# generate the params for this login request
 	my $loginUri = URI->new_abs('login', $h->{'casServer'});
-	my $response = $ua->simple_request(HTTP::Request::Common::POST($loginUri, [
+	my @params = (
 		'service' => $service,
 		'username' => $h->{'username'},
 		'password' => $h->{'password'},
-	]));
+	);
+
+	# find any additional required login params (i.e. lt, execution, and _eventId)
+	if(@{$h->{'config'}->{'param_heuristics'}}) {
+		# retrieve the login form that will be parsed by configured param_heuristics
+		my $formUri = $loginUri->clone();
+		$formUri->query_param('service', $service);
+		my $response = $ua->simple_request(HTTP::Request::Common::GET($formUri));
+
+		# process all configured param heuristics
+		foreach (@{$h->{'config'}->{'param_heuristics'}}) {
+			# skip invalid heuristics
+			next if(ref($_) ne 'CODE');
+
+			# process this heuristic
+			@params = $_->($service, $response, $ua, $h, @params);
+		}
+	}
+
+	# issue the login request
+	my $response = $ua->simple_request(HTTP::Request::Common::POST($loginUri, \@params));
 
 	#short-circuit if there is no response from CAS for some reason
 	return if(!$response);
@@ -388,6 +428,10 @@ sub attach_cas_handler($%) {
 	$opt{'ticket_heuristics'} = [$opt{'ticket_heuristics'}] if(ref($opt{'ticket_heuristics'}) ne 'ARRAY');
 	push @{$opt{'ticket_heuristics'}}, $defaultTicketHeuristic;
 	@{$opt{'ticket_heuristics'}} = grep {ref($_) eq 'CODE'} @{$opt{'ticket_heuristics'}};
+
+	$opt{'param_heuristics'} = [$opt{'param_heuristics'}] if(ref($opt{'param_heuristics'}) ne 'ARRAY');
+	push @{$opt{'param_heuristics'}}, $defaultLoginParamsHeuristic;
+	@{$opt{'param_heuristics'}} = grep {ref($_) eq 'CODE'} @{$opt{'param_heuristics'}};
 
 	#remove any pre-existing login handler for the current CAS server
 	$self->remove_cas_handlers($opt{'server'});
