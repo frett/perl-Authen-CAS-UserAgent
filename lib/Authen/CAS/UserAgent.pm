@@ -489,7 +489,7 @@ sub get_cas_ticket($$;$) {
 
 	# get a ticket from the handler
 	$h->{'running'}++;
-	my $ticket = eval {$h->{'loginCb'}->($service, LWP::UserAgent->new(), $h)};
+	my $ticket = eval {$h->{'loginCb'}->($service, LWP::UserAgent->new(cookie_jar => {}), $h)};
 	$h->{'running'}--;
 
 	# return the found ticket
