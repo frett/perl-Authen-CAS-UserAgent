@@ -93,7 +93,7 @@ my $casLoginHandler = sub {
 		return if(!defined $ticket);
 
 		#update the Location header
-		$response->header('Location', $service . ($service =~ /\?/o ? '&' : '?') . 'ticket=' . uri_escape($ticket));
+		$response->header('Location', $service . ($service =~ /\?/ ? '&' : '?') . 'ticket=' . uri_escape($ticket));
 
 		#attach a local response_redirect handler that will issue the redirect if necessary
 		push(@{$response->{'handlers'}->{'response_redirect'}},
@@ -136,10 +136,10 @@ my $defaultLoginParamsHeuristic = sub {
 
 	# find all input controls on the submit form
 	my $content = $response->decoded_content;
-	while($content =~ /(\<input.*?\>)/iogs) {
+	while($content =~ /(\<input.*?\>)/igs) {
 		my $input = $1;
-		my $name = $input =~ /name=\"(.*?)\"/soi ? $1 : undef;
-		my $value = $input =~ /value=\"(.*?)\"/soi ? $1 : undef;
+		my $name = $input =~ /name=\"(.*?)\"/si ? $1 : undef;
+		my $value = $input =~ /value=\"(.*?)\"/si ? $1 : undef;
 
 		# we only care about the lt, execution, and _eventId parameters
 		if($name eq 'lt' || $name eq 'execution' || $name eq '_eventId') {
@@ -158,13 +158,13 @@ my $defaultTicketHeuristic = sub {
 	#attempt using the Location header on a redirect response
 	if($response->is_redirect) {
 		my $uri = $response->header('Location');
-		if($uri =~ /[\?\&]ticket=([^&]*)$/o) {
+		if($uri =~ /[?&]ticket=([^&]*)$/) {
 			return $1;
 		}
 	}
 
 	#check for a javascript window.location.href redirect
-	if($response->decoded_content =~ /window\.location\.href=\"[^\"]*ticket=([^&\"]*?)\"/sog) {
+	if($response->decoded_content =~ /window\.location\.href="[^"]*ticket=([^&"]*?)"/sg) {
 		return $1;
 	}
 
@@ -489,7 +489,7 @@ sub get_cas_ticket($$;$) {
 
 	# get a ticket from the handler
 	$h->{'running'}++;
-	my $ticket = eval {$h->{'loginCb'}->($service, LWP::UserAgent->new(), $h)};
+	my $ticket = eval {$h->{'loginCb'}->($service, LWP::UserAgent->new(cookie_jar => {}), $h)};
 	$h->{'running'}--;
 
 	# return the found ticket
