@@ -10,6 +10,8 @@
 ^_build/
 ^Build$
 ^blib/
+^Makefile$
+^Makefile\.old$
 ^MYMETA\.json$
 ^MYMETA\.yml$
 

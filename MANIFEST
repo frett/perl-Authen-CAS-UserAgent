@@ -1,4 +1,5 @@
 Build.PL
+CHANGES
 lib/Authen/CAS/UserAgent.pm
 LICENSE
 Makefile.PL
@@ -6,3 +7,5 @@ MANIFEST			This list of files
 META.json
 META.yml
 t/00use.t
+t/20rest.t
+t/MockUserAgent.pl
