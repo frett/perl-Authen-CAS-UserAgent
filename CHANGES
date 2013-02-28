@@ -1,0 +1,6 @@
+0.91
+	* added login ticket support
+	* added some RESTful login tests
+
+0.90
+	* Initial public version

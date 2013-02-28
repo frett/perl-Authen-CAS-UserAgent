@@ -31,7 +31,7 @@ use strict;
 use utf8;
 use base qw{LWP::UserAgent Exporter};
 
-our $VERSION = '0.910';
+our $VERSION = '0.91';
 
 use constant CASHANDLERNAME => __PACKAGE__ . '.Handler';
 use constant XMLNS_CAS => 'http://www.yale.edu/tp/cas';
